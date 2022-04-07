@@ -20,5 +20,6 @@ This chat using [tmi.js](https://tmijs.com/).
 ```
 4. Test it by opening index.html in your browser. 
 Type something in your chat it should immediately appear in ***index.html*** page.
-5. Add ***index.html*** as local browser source in your OBS programm.
-6. PROFIT!!!
+5. Add ***index.html*** as local browser source in your OBS programm. 
+*Recommended height: 50px.*
+7. PROFIT!!!
