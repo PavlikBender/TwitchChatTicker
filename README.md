@@ -1,4 +1,4 @@
-# Twitch Ticker chat
+# Twitch ticker chat
 Horizontal chat for twitch. News ticker like chat.
 Chat supports twitch and BTTV emotes. No any user badge support.
 
