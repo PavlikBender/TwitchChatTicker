@@ -1,0 +1,236 @@
+<html>
+	<head>
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Google%20Sans">
+		<style>
+			body {
+				overflow: hidden;
+				margin: 0px;
+				background: red;
+			}
+			 
+			.message { 
+				position: absolute;
+				font-family: Google Sans,sans-serif;
+				font-weight: 600;
+				font-size: 30px;
+				color: white;
+				white-space: nowrap;
+			}
+		</style>
+	</head>
+	<body>
+	<script src="tmi.min.js"></script>
+	<script>
+		// Put your twitch ID here.
+		const channelID = '61220092';
+		// Put your twitch channel name.
+		const channelName = 'PavlikBender';
+
+		// Message separator.
+		const separator = '&nbsp;&nbsp;▪&nbsp;&nbsp;'
+		// Middle of the screen.
+		var middle = 0;
+		
+		// fps lock variables - info: https://gist.github.com/elundmark/38d3596a883521cb24f5
+		var fps = 60;
+		var now;
+		var then = Date.now();
+		var interval = 1000/fps;
+		var delta;
+		
+		// Array for created divs.
+		var divs = [];
+		// Array for id and code of BTTV Emotes.
+		var bttvEmotes = [];
+
+		// Initializing client.
+		const client = new tmi.Client({
+			channels: [ channelName ]
+		});
+		// Client connect.
+		client.connect();
+		
+		// Connected event.
+		client.on('connected', () => {
+			// Useful info about BTTV addresses: https://gist.github.com/chuckxD/377211b3dd3e8ca8dc505500938555eb
+			// Request of global BTTV emotes.
+			fetch('https://api.betterttv.net/3/cached/emotes/global')
+			.then(response => response.json())
+			.then(data => {
+				for (var i in data)
+				{
+					// Add id and code of global BTTV emote.
+					bttvEmotes.push({id: data[i].id, code: data[i].code});
+				}
+			});
+			
+			// Request of channel BTTV emotes.
+			fetch('https://api.betterttv.net/3/cached/users/twitch/' + channelID)
+			.then(response => response.json())
+			.then(data => {
+				// Shared emotes.
+				for (var i in data.sharedEmotes)
+				{
+					// Add id and code of shared BTTV emote.
+					bttvEmotes.push({id: data.sharedEmotes[i].id, code: data.sharedEmotes[i].code});
+				}
+				// Channel emotes.
+				for (var i in data.channelEmotes)
+				{
+					// Add id and code of channel BTTV emote.
+					bttvEmotes.push({id: data.channelEmotes[i].id, code: data.channelEmotes[i].code});
+				}
+			});
+		});
+		
+		// Message received event.
+		client.on('message', (channel, tags, message, self) => {
+			// Array of twitch emotes in message. Need for sorting and correct replace.
+			var twitchEmotes = [];
+			
+			// Emotes cycle.
+			for (var emoteName in tags.emotes)
+			{
+				// Array of emote positions.
+				var positions = tags.emotes[emoteName];
+
+				// Sorting by positions: Positions look like "0-5".
+				// In other words, emote taking symbols in message between 0 to 5.
+				for (var i in positions)
+				{
+					// Searching for dash position. Index never equals -1.
+					var dash = positions[i].indexOf("-");
+					
+					// Geting start and end emote values. Do not forget ParseInt.
+					// Pushing position info in array.
+					twitchEmotes.push({id: emoteName, start: parseInt(positions[i].slice(0, dash)), end: parseInt(positions[i].slice(dash + 1))});
+				}	
+			}
+			
+			// Final message.
+			var finalMessage = "";
+			
+			// Sort by ascending start position of emotes, for correct replacement in message.
+			twitchEmotes.sort( (a, b) => a.start - b.start );
+			
+			// Counter from what position cut message.
+			var from = 0;
+			// Sorted emotes cycle.
+			for (var j in twitchEmotes)
+			{
+				// Generating IMG element with emote link.
+				var replaceText = '<img src="https://static-cdn.jtvnw.net/emoticons/v1/' + twitchEmotes[j].id +'/1.0" alt="' + twitchEmotes[j].id + '">';
+				// Getting interval between previous emote and before current.
+				// + IMG element
+				var leftSide = message.slice(from, twitchEmotes[j].start) + replaceText;
+				// Shift from position.
+				from = twitchEmotes[j].end + 1;
+				// Add result to final message.
+				finalMessage += leftSide;
+			}
+			// If after emote left simple text, add to final message.
+			if (from < message.length)
+				finalMessage += message.slice(from);
+				
+			// BTTV emotes proccessing.
+			for (var k in bttvEmotes)
+			{
+				// Generating IMG element with emote link.
+				var replaceText = '<img src="https://cdn.betterttv.net/emote/' + bttvEmotes[k].id + '/1x" alt="' + bttvEmotes[k].code + '">';
+				
+				// Case if send only one emote.
+				if (finalMessage == bttvEmotes[k].code)
+				{
+					finalMessage = replaceText;
+				}
+				// Case if message starts from BTTV emote.
+				if (finalMessage.startsWith(bttvEmotes[k].code + ' '))
+				{
+					finalMessage = replaceText + finalMessage.slice(bttvEmotes[k].code.length);
+				}
+				// Case if message ends with BTTV emote.
+				if (finalMessage.endsWith(' ' + bttvEmotes[k].code))
+				{
+					finalMessage = finalMessage.slice(0, finalMessage.length - bttvEmotes[k].code.length) + replaceText;
+				}
+				// Case if BTTV emote in the middle of message.
+				finalMessage = finalMessage.replace(' ' + bttvEmotes[k].code + ' ', ' ' + replaceText + ' ');
+			}
+			
+			// Create div element with final message.
+			var div = document.createElement("div");
+			// Setting inner content.
+			div.innerHTML = `${tags['display-name']}: ${finalMessage}${separator}`;
+			div.className = 'message';
+
+			// Setting start position of div.
+			// If divs array is empty, set position behind the right side.
+			if (divs.length == 0)
+				div.style.left = window.innerWidth;
+			else 
+			{
+				// Getting rightmost div in divs array.
+				var max = divs.reduce((prev, cur) => {
+				  if (parseInt(prev.style.left) > parseInt(cur.style.left)) {
+					return prev;
+				  }
+				  return cur;
+				});
+				// Set position of current div, behind rightmost div.
+				var finalPosition = parseInt(max.style.left) + max.offsetWidth;
+				// If position in visible part of screen. Set position behind the right side.
+				if (finalPosition < window.innerWidth)
+					finalPosition = window.innerWidth;
+				// Set position to div.
+				div.style.left = finalPosition;
+			}
+			
+			// Add div in DOM.
+			document.body.appendChild(div);
+			
+			// Top position in the center - css top: 50%; doesn't work.
+			if (middle == 0)
+				middle = (window.innerHeight - div.offsetHeight)/2;
+			// Setting top only after appended in DOM.
+			div.style.top = middle;
+			
+			// Push in divs array.
+			divs.push(div);
+		});
+		
+		// Animation function.
+		// Need for animation of divs move.
+		const animate = function () {
+			requestAnimationFrame( animate );
+			
+			now = Date.now();
+			delta = now - then;
+			 
+			if (delta > interval) {
+				then = now - (delta % interval);
+				// Array divs for delete.
+				var forDelete = [];
+				for (var i in divs)
+				{
+					// Move div left by 1px.
+					var left = parseInt(divs[i].style.left)
+					divs[i].style.left = left - 1;
+					// If div moved behind left side, add to delete array.
+					if (left + divs[i].offsetWidth < 0)
+						forDelete.push(i);
+				}
+				// Delete divs from array and DOM.
+				for (var j in forDelete)
+				{
+					var i = forDelete[j];
+					var divForDelete = divs[i];
+					divs.splice(i,1);
+					divForDelete.remove();
+				}
+			}
+		};
+
+		animate();
+	</script>
+	</body>
+</html>
