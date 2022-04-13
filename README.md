@@ -2,7 +2,7 @@
 Horizontal chat for twitch. News ticker like chat.
 Chat supports twitch and BTTV emotes. No any user badge support.
 
-This chat using [tmi.js](https://tmijs.com/).
+Chat using [tmi.js](https://tmijs.com/).
 
 ## Settings
 1. Get your Twitch channel ID.
